@@ -1,16 +1,31 @@
-// client/src/components/SecretAccess.tsx
 import { useState } from "react";
-import { useParams } from "react-router";
-import { Link, useNavigate } from "react-router";
+import { useParams, Link } from "react-router";
+// Import shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 
+/**
+ * SecretAccess Component
+ *
+ * - Allows users to access a shared secret via its short URL.
+ * - Prompts for a password if the secret is password-protected.
+ * - Displays the secret along with navigation buttons to return home or encrypt another secret.
+ */
 export default function SecretAccess() {
   const { shortId } = useParams();
   const [password, setPassword] = useState("");
   const [secretText, setSecretText] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [hasPassword, setHasPassword] = useState(false);
-  const navigate = useNavigate();
+  const [passwordRequired, setPasswordRequired] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,86 +33,84 @@ export default function SecretAccess() {
     setError("");
 
     try {
-      const response = await fetch(`http://localhost:8000/secrets/${shortId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ password }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to retrieve secret");
-      }
-
+      const response = await fetch(
+        `http://localhost:8000/secrets/${shortId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        }
+      );
       const data = await response.json();
 
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
       if (data.passwordRequired) {
-        setHasPassword(true);
-        return;
+        setPasswordRequired(true);
+      } else if (data.error) {
+        setError(data.error);
+      } else if (data.secretText) {
+        setSecretText(data.secretText);
       }
-
-      setSecretText(data.secretText || "");
-    } catch (error) {
-      console.error("Error retrieving secret:", error);
-      setError(error instanceof Error ? error.message : "Failed to retrieve secret");
+    } catch (err) {
+      console.error("Error retrieving secret:", err);
+      setError("Failed to retrieve secret");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Access Secret</h1>
-
-      <div className="max-w-md mx-auto">
-        {hasPassword && (
-          <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-2">
-              This secret is password protected. Please enter the password to access it.
-            </p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {hasPassword && (
-            <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-2 border rounded"
-              />
+    <div className="min-h-screen flex flex-col items-center py-10 bg-gradient-to-br from-green-200 to-blue-200">
+      <Card className="w-full max-w-xl">
+        <CardHeader className="text-center">
+          <CardTitle className="text-3xl font-bold">Access Secret</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {passwordRequired && (
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="mt-1"
+                  required
+                />
+              </div>
+            )}
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading
+                ? "Loading..."
+                : passwordRequired
+                ? "Submit Password"
+                : "Access Secret"}
+            </Button>
+          </form>
+          {error && (
+            <div className="mt-4 text-center text-destructive font-medium">
+              {error}
             </div>
           )}
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
-          >
-            {isLoading ? "Accessing..." : hasPassword ? "Submit Password" : "Access Secret"}
-          </button>
-        </form>
-
-        {error && (
-          <div className="mt-4 p-2 bg-red-100 text-red-700 rounded">
-            {error}
-          </div>
-        )}
-
+          {secretText && (
+            <div className="mt-6 p-4 bg-muted rounded-md shadow">
+              <h2 className="text-xl font-semibold mb-3">Your Secret</h2>
+              <pre className="whitespace-pre-wrap text-sm">{secretText}</pre>
+            </div>
+          )}
+        </CardContent>
         {secretText && (
-          <div className="mt-4 p-4 bg-gray-100 rounded">
-            <h2 className="text-lg font-semibold mb-2">Secret:</h2>
-            <p className="whitespace-pre-wrap">{secretText}</p>
-          </div>
+          <CardFooter className="flex justify-around mt-6">
+            <Link to="/">
+              <Button variant="outline">Homepage</Button>
+            </Link>
+            <Link to="/share">
+              <Button>Encrypt Another Secret</Button>
+            </Link>
+          </CardFooter>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

@@ -1,17 +1,28 @@
 import { Link } from "react-router";
-import reactLogo from "../assets/react.svg";
 
+/**
+ * HomePage Component
+ * Renders the landing page with navigation to the secret sharing feature.
+ */
 function HomePage() {
   return (
-    <div className="h-screen bg-black flex justify-center items-center flex-col space-x-4 text-white">
-      <div>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} alt="React logo" className="w-36 h-36" />
-        </a>
-      </div>
-      <h1>Infisical coding assignment page 1</h1>
-      <div className="py-4">
-        <Link to="/second">Go to second page</Link>
+    <div className="min-h-screen bg-gradient-to-r from-purple-400 to-blue-500 flex flex-col justify-center items-center text-white">
+      <h1 className="text-4xl font-bold mb-6">
+        Welcome to the Secret Sharing App
+      </h1>
+      <div className="space-x-4">
+        <Link
+          to="/share"
+          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
+        >
+          Share a Secret
+        </Link>
+        <Link
+          to="/access"
+          className="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg transition"
+        >
+          Access a Secret
+        </Link>
       </div>
     </div>
   );
