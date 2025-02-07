@@ -32,10 +32,19 @@ export default function SecretSharingForm() {
       }
 
       const data = await response.json();
-      setShortUrl(data.shortUrl);
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setShortUrl(data.shortUrl || "");
       setSecretText("");
       setPassword("");
       setExpiresDays(7);
+
+      // Automatically navigate to the secret access page
+      navigate(`/share/${data.shortUrl.split('/share/').pop()}`);
+
     } catch (error) {
       console.error("Error creating secret:", error);
       alert("Failed to create secret");

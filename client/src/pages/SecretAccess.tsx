@@ -1,7 +1,7 @@
 // client/src/components/SecretAccess.tsx
 import { useState } from "react";
 import { useParams } from "react-router";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 
 export default function SecretAccess() {
   const { shortId } = useParams();
@@ -10,6 +10,7 @@ export default function SecretAccess() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasPassword, setHasPassword] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,12 +26,12 @@ export default function SecretAccess() {
         body: JSON.stringify({ password }),
       });
 
-      // if (!response.ok) {
-      //   throw new Error("Failed to retrieve secret");
-      // }
+      if (!response.ok) {
+        throw new Error("Failed to retrieve secret");
+      }
 
       const data = await response.json();
-      console.log(data)
+
       if (data.error) {
         throw new Error(data.error);
       }
