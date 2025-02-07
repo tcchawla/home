@@ -1,13 +1,14 @@
 const {
   createOnUpdateTrigger,
   dropOnUpdateTrigger,
+  createUpdateAtTriggerFunction,
+  dropUpdatedAtTriggerFunction,
 } = require("../util/db-util");
 
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-// server/src/db/migrations/20250116085521_secret-sharing.js
 
 exports.up = async function (knex) {
   // Create secrets table
@@ -22,7 +23,12 @@ exports.up = async function (knex) {
       t.integer("fragment_count").defaultTo(2);
     });
 
-    // Create fragments table
+    await createUpdateAtTriggerFunction(knex);
+    await createOnUpdateTrigger(knex, "secrets");
+  }
+
+  // Create fragments table
+  if (!(await knex.schema.hasTable("secret_fragments"))) {
     await knex.schema.createTable("secret_fragments", (t) => {
       t.uuid("id").primary().defaultTo(knex.fn.uuid());
       t.uuid("secret_id").references("id").inTable("secrets");
@@ -30,7 +36,12 @@ exports.up = async function (knex) {
       t.integer("order").notNullable();
     });
 
-    // Create mapping table for short URLs
+    await createUpdateAtTriggerFunction(knex);
+    await createOnUpdateTrigger(knex, "secret_fragments");
+  }
+
+  // Create mapping table for short URLs
+  if (!(await knex.schema.hasTable("secret_mappings"))) {
     await knex.schema.createTable("secret_mappings", (t) => {
       t.uuid("id").primary().defaultTo(knex.fn.uuid());
       t.uuid("secret_id").references("id").inTable("secrets");
@@ -38,16 +49,17 @@ exports.up = async function (knex) {
       t.timestamp("created_at").defaultTo(knex.fn.now());
       t.timestamp("expires_at");
     });
+
+    await createUpdateAtTriggerFunction(knex);
+    await createOnUpdateTrigger(knex, "secret_mappings");
   }
 };
-
-
-
 
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
+
 exports.down = async function (knex) {
   if (await knex.schema.hasTable("secrets")) {
     await knex.schema.dropTable("secret_fragments");

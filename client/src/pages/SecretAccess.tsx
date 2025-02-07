@@ -1,24 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router";
-// Import shadcn/ui components
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from "@/components/ui/card";
 
-/**
- * SecretAccess Component
- *
- * - Allows users to access a shared secret via its short URL.
- * - Prompts for a password if the secret is password-protected.
- * - Displays the secret along with navigation buttons to return home or encrypt another secret.
- */
 export default function SecretAccess() {
   const { shortId } = useParams();
   const [password, setPassword] = useState("");
@@ -27,27 +9,26 @@ export default function SecretAccess() {
   const [isLoading, setIsLoading] = useState(false);
   const [passwordRequired, setPasswordRequired] = useState(false);
 
+  // Handle form submission to retrieve the secret.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-
     try {
-      const response = await fetch(
-        `http://localhost:8000/secrets/${shortId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password }),
-        }
-      );
+      const response = await fetch(`http://localhost:8000/secrets/${shortId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
       const data = await response.json();
 
+      // If the secret is password-protected and a password is required
       if (data.passwordRequired) {
         setPasswordRequired(true);
       } else if (data.error) {
         setError(data.error);
       } else if (data.secretText) {
+        // Once the secret is retrieved, set it and hide the password form.
         setSecretText(data.secretText);
       }
     } catch (err) {
@@ -59,58 +40,69 @@ export default function SecretAccess() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center py-10 bg-gradient-to-br from-green-200 to-blue-200">
-      <Card className="w-full max-w-xl">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">Access Secret</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="min-h-screen bg-gradient-to-r from-purple-400 to-blue-500 flex flex-col justify-center items-center text-white">
+      <div className="w-full max-w-xl bg-gray-800 rounded-xl shadow-xl p-8 text-white">
+        <h1 className="text-3xl font-bold text-center mb-6">Access Secret</h1>
+        {!secretText && (
+          <form onSubmit={handleSubmit} className="space-y-6">
             {passwordRequired && (
               <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
+                <label htmlFor="password" className="block text-lg font-medium mb-2">
+                  Password
+                </label>
+                <input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="mt-1"
                   required
+                  className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
             )}
-            <Button type="submit" disabled={isLoading} className="w-full">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-blue-600 hover:bg-blue-700 font-semibold py-4 rounded-lg transition"
+            >
               {isLoading
                 ? "Loading..."
                 : passwordRequired
                 ? "Submit Password"
                 : "Access Secret"}
-            </Button>
+            </button>
           </form>
-          {error && (
-            <div className="mt-4 text-center text-destructive font-medium">
-              {error}
-            </div>
-          )}
-          {secretText && (
-            <div className="mt-6 p-4 bg-muted rounded-md shadow">
-              <h2 className="text-xl font-semibold mb-3">Your Secret</h2>
-              <pre className="whitespace-pre-wrap text-sm">{secretText}</pre>
-            </div>
-          )}
-        </CardContent>
-        {secretText && (
-          <CardFooter className="flex justify-around mt-6">
-            <Link to="/">
-              <Button variant="outline">Homepage</Button>
-            </Link>
-            <Link to="/share">
-              <Button>Encrypt Another Secret</Button>
-            </Link>
-          </CardFooter>
         )}
-      </Card>
+
+        {error && (
+          <div className="mt-4 text-center text-red-400 font-medium">
+            {error}
+          </div>
+        )}
+        {secretText && (
+          <>
+            <div className="mt-6 p-6 bg-gray-700 rounded-md shadow">
+              <h2 className="text-xl font-semibold mb-3">Your Secret</h2>
+              <pre className="whitespace-pre-wrap text-white">{secretText}</pre>
+            </div>
+            <div className="flex justify-around mt-8">
+              <Link
+                to="/"
+                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
+              >
+                Homepage
+              </Link>
+              <Link
+                to="/share"
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg transition"
+              >
+                Encrypt Another Secret
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

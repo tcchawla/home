@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
@@ -9,7 +9,6 @@ dotenv.config();
 
 export const app = express();
 
-// Use CORS & JSON body parser middleware
 app.use(cors());
 app.use(express.json());
 
@@ -17,6 +16,7 @@ app.use(express.json());
  * Generates an 8-character random string to be used as the short URL identifier.
  * @returns {string} An 8-character string.
  */
+
 const generateShortId = () => {
   const characters =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -32,10 +32,11 @@ const generateShortId = () => {
 
 /**
  * POST /secrets
- * Creates a secret share by splitting the submitted secret text into fragments and,
+ * Creates a secret share by splitting the submitted secret text into fragments (of two) and,
  * optionally, hashing a provided password.
  * Returns a short URL that can be used to retrieve the secret.
  */
+
 app.post("/secrets", async (req, res) => {
   try {
     const { secretText, expiresDays, password } = req.body;
@@ -108,7 +109,8 @@ app.post("/secrets", async (req, res) => {
  * Retrieves a secret share based on the provided short URL.
  * If the secret is password-protected, informs the client that a password is required.
  */
-app.get("/secrets/:shortId", async (req, res) => {
+
+app.get("/secrets/:shortId", async (req: Request<{ shortId: string }>, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { shortId } = req.params;
 
@@ -119,7 +121,8 @@ app.get("/secrets/:shortId", async (req, res) => {
       .first();
 
     if (!secretMapping) {
-      return res.status(404).json({ error: "Secret not found or expired" });
+      res.status(404).json({ error: "Secret not found or expired" });
+      return;
     }
 
     const secretId = secretMapping.secret_id;
@@ -128,19 +131,22 @@ app.get("/secrets/:shortId", async (req, res) => {
     if (!secret) {
       // Clean up mapping if secret record missing
       await db("secret_mappings").where("short_id", shortId).del();
-      return res.status(404).json({ error: "Secret not found" });
+      res.status(404).json({ error: "Secret not found" });
+      return;
     }
 
     // If the secret has expired, delete both records and respond accordingly.
     if (new Date(secret.expires_at) < new Date()) {
       await db("secrets").where("id", secretId).del();
       await db("secret_mappings").where("short_id", shortId).del();
-      return res.status(410).json({ error: "Secret has expired" });
+      res.status(410).json({ error: "Secret has expired" });
+      return;
     }
 
     // Inform client if password is required
     if (secret.password_hash) {
-      return res.json({ secretText: null, passwordRequired: true });
+      res.json({ secretText: null, passwordRequired: true });
+      return;
     }
 
     // Retrieve and reassemble secret fragments in correct order
@@ -154,7 +160,8 @@ app.get("/secrets/:shortId", async (req, res) => {
     );
 
     if (!secretText) {
-      return res.status(404).json({ error: "Secret fragments not found" });
+      res.status(404).json({ error: "Secret fragments not found" });
+      return;
     }
 
     res.json({ secretText });
@@ -170,7 +177,8 @@ app.get("/secrets/:shortId", async (req, res) => {
  * If valid (or if no password is set), returns the reassembled secret.
  * If the password is incorrect, returns a 401 with a clear error message.
  */
-app.post("/secrets/:shortId", async (req, res) => {
+
+app.post("/secrets/:shortId", async (req: Request<{ shortId: string }>, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { shortId } = req.params;
     const { password } = req.body;
@@ -182,34 +190,37 @@ app.post("/secrets/:shortId", async (req, res) => {
       .first();
 
     if (!secretMapping) {
-      return res.status(404).json({ error: "Secret not found or expired" });
+      res.status(404).json({ error: "Secret not found or expired" });
+      return;
     }
 
     const secretId = secretMapping.secret_id;
     const secret = await db("secrets").where("id", secretId).first();
     if (!secret) {
       await db("secret_mappings").where("short_id", shortId).del();
-      return res.status(404).json({ error: "Secret not found" });
+      res.status(404).json({ error: "Secret not found" });
+      return;
     }
     if (new Date(secret.expires_at) < new Date()) {
       await db("secrets").where("id", secretId).del();
       await db("secret_mappings").where("short_id", shortId).del();
-      return res.status(410).json({ error: "Secret has expired" });
+      res.status(410).json({ error: "Secret has expired" });
+      return;
     }
 
     // If password is required, validate the submitted value.
     if (secret.password_hash) {
       if (!password) {
-        return res.json({ secretText: null, passwordRequired: true });
+        res.json({ secretText: null, passwordRequired: true });
+        return;
       }
       const isValidPassword = await bcrypt.compare(
         password,
         secret.password_hash
       );
       if (!isValidPassword) {
-        return res
-          .status(401)
-          .json({ error: "Password is incorrect, please try again" });
+        res.status(401).json({ error: "Password is incorrect, please try again" });
+        return;
       }
     }
 
@@ -230,9 +241,7 @@ app.post("/secrets/:shortId", async (req, res) => {
   }
 });
 
-// Start the backend server
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
-  // Minimal logging on startup
   console.info(`Server running on http://localhost:${PORT}`);
 });
