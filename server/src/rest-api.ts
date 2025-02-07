@@ -220,7 +220,9 @@ app.post("/secrets/:shortId", async (req, res) => {
         secret.password_hash
       );
       if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid password" });
+        return res
+          .status(401)
+          .json({ error: "Password is incorrect, please try again" });
       }
     }
 
