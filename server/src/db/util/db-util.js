@@ -1,8 +1,8 @@
 module.exports.createOnUpdateTrigger = async (knex, tableName) => {
   const triggerExists = await knex.raw(`
       SELECT EXISTS (
-        SELECT 1 
-        FROM pg_trigger 
+        SELECT 1
+        FROM pg_trigger
         WHERE tgname = '${tableName}_updatedAt'
       );
     `);
@@ -24,11 +24,13 @@ module.exports.dropOnUpdateTrigger = (knex, tableName) =>
 
 module.exports.createUpdateAtTriggerFunction = (knex) =>
   knex.raw(`
-CREATE OR REPLACE FUNCTION on_update_timestamp() RETURNS TRIGGER AS $$ BEGIN NEW."updatedAt" = NOW();
-RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-`);
+    CREATE OR REPLACE FUNCTION on_update_timestamp()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+  `);
 
 module.exports.dropUpdatedAtTriggerFunction = (knex) =>
   knex.raw(`

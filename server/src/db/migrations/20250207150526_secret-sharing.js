@@ -63,6 +63,8 @@ exports.up = async function (knex) {
       t.uuid("secret_id").references("id").inTable("secrets");
       t.text("email")
       t.timestamp("expires_at");
+      t.timestamp("updatedAt").defaultTo(knex.fn.now());
+      t.timestamp("createdAt").defaultTo(knex.fn.now());
     });
 
     await createUpdateAtTriggerFunction(knex);
