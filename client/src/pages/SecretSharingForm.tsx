@@ -1,16 +1,16 @@
 import { useState } from "react";
-import { HeartSwitch } from '@anatoliygatt/heart-switch';
+import { HeartSwitch } from "@anatoliygatt/heart-switch";
 
 export default function SecretSharingForm() {
   const [secretText, setSecretText] = useState("");
   const [expiresDays, setExpiresDays] = useState(7);
+  const [expiresMinutes, setExpiresMinutes] = useState(0);
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shortUrl, setShortUrl] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
   const [email, setEmail] = useState("");
   const [checked, setChecked] = useState(false);
-
 
   // Handles form submission: sends a POST request to create a new secret.
   const handleSubmit = async (e: React.FormEvent) => {
@@ -20,13 +20,20 @@ export default function SecretSharingForm() {
       const response = await fetch("http://localhost:8000/secrets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secretText, expiresDays, password, checked, email }),
+        body: JSON.stringify({
+          secretText,
+          expiresDays,
+          expiresMinutes,
+          password,
+          checked,
+          email,
+        }),
       });
       if (!response.ok) {
         throw new Error("Failed to create secret");
       }
 
-      console.log(email)
+      console.log(email);
       const data = await response.json();
       setShortUrl(data.shortUrl);
 
@@ -34,6 +41,7 @@ export default function SecretSharingForm() {
       setSecretText("");
       setPassword("");
       setExpiresDays(7);
+      setExpiresMinutes(0);
     } catch (error) {
       console.error("Error creating secret:", error);
     } finally {
@@ -63,7 +71,10 @@ export default function SecretSharingForm() {
         </h1>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="secretText" className="block text-lg font-medium mb-2">
+            <label
+              htmlFor="secretText"
+              className="block text-lg font-medium mb-2"
+            >
               Secret Text
             </label>
             <textarea
@@ -77,24 +88,54 @@ export default function SecretSharingForm() {
             />
           </div>
 
-          <div>
-            <label htmlFor="expiresDays" className="block text-lg font-medium mb-2">
-              Expiration (days)
-            </label>
-            <input
-              id="expiresDays"
-              type="number"
-              value={expiresDays}
-              onChange={(e) => setExpiresDays(Number(e.target.value))}
-              min="1"
-              max="365"
-              className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label
+                htmlFor="expiresDays"
+                className="block text-lg font-medium mb-2"
+              >
+                Expiration (days)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="expiresDays"
+                  type="number"
+                  value={expiresDays}
+                  onChange={(e) => setExpiresDays(Number(e.target.value))}
+                  max="365"
+                  className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <span className="text-gray-400">days</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <label
+                htmlFor="expiresMinutes"
+                className="block text-lg font-medium mb-2"
+              >
+                Expiration (minutes)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="expiresMinutes"
+                  type="number"
+                  value={expiresMinutes}
+                  onChange={(e) => setExpiresMinutes(Number(e.target.value))}
+                  min="1"
+                  max="1439"
+                  className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-gray-400">minutes</span>
+              </div>
+            </div>
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-lg font-medium mb-2">
+            <label
+              htmlFor="password"
+              className="block text-lg font-medium mb-2"
+            >
               Password (optional)
             </label>
             <input
@@ -106,20 +147,20 @@ export default function SecretSharingForm() {
               className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-            <HeartSwitch
-                  aria-label="Extendable"
-                  size="sm"
-                  inactiveTrackFillColor="#cffafe"
-                  inactiveTrackStrokeColor="#22d3ee"
-                  activeTrackFillColor="#06b6d4"
-                  activeTrackStrokeColor="#0891b2"
-                  inactiveThumbColor="#ecfeff"
-                  activeThumbColor="#ecfeff"
-                  checked={checked}
-                  onChange={(event) => {
-                    setChecked(event.target.checked);
-                  }}
-            />
+          <HeartSwitch
+            aria-label="Extendable"
+            size="sm"
+            inactiveTrackFillColor="#cffafe"
+            inactiveTrackStrokeColor="#22d3ee"
+            activeTrackFillColor="#06b6d4"
+            activeTrackStrokeColor="#0891b2"
+            inactiveThumbColor="#ecfeff"
+            activeThumbColor="#ecfeff"
+            checked={checked}
+            onChange={(event) => {
+              setChecked(event.target.checked);
+            }}
+          />
           {checked && (
             <div>
               <label htmlFor="email" className="block text-lg font-medium mb-2">
@@ -134,7 +175,6 @@ export default function SecretSharingForm() {
                 className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
           )}
 
           <button

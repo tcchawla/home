@@ -16,7 +16,6 @@ app.use(express.json());
  * Generates an 8-character random string to be used as the short URL identifier.
  * @returns {string} An 8-character string.
  */
-
 const generateShortId = () => {
   const characters =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -31,41 +30,69 @@ const generateShortId = () => {
 };
 
 /**
+ * Helper function to format the remaining time until expiration.
+ * @param expiration The expiration Date object.
+ * @returns {string} A human-readable string.
+ */
+const formatRemainingTime = (expiration: Date): string => {
+  const now = new Date();
+  const diff = expiration.getTime() - now.getTime();
+  if (diff <= 0) return "Secret has expired";
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return `${days} days, ${hours} hours, and ${minutes} minutes remaining`;
+};
+
+/**
  * POST /secrets
- * Creates a secret share by splitting the submitted secret text into fragments (of two) and,
+ * Creates a secret share by splitting the submitted secret text into fragments and,
  * optionally, hashing a provided password.
  * Returns a short URL that can be used to retrieve the secret.
  */
-
 app.post("/secrets", async (req, res) => {
   try {
-    const { secretText, expiresDays, password, checked, email } = req.body;
+    // Accept expiresDays (and optionally expiresMinutes) from the client.
+    // If expiresDays is not provided, default to 7 days; we don't store minutes separately.
+    const {
+      secretText,
+      expiresDays,
+      expiresMinutes, // optional, used in computing the expiration
+      password,
+      checked,
+      email
+    } = req.body;
     const secretId = uuidv4();
     const shortId = generateShortId();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (expiresDays || 7));
 
-    // Hash password if provided
+    // Calculate expiration timestamp
+    const now = new Date();
+    const days = expiresDays !== undefined && expiresDays !== null ? expiresDays : 7;
+    const minutes = expiresMinutes !== undefined && expiresMinutes !== null ? expiresMinutes : 0;
+    const expiresAt = new Date(now);
+    expiresAt.setDate(expiresAt.getDate() + days);
+    expiresAt.setMinutes(expiresAt.getMinutes() + minutes);
+
+    // Hash password if provided.
     const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+    const isExtendable = checked ? true : false;
+    const emailSender = isExtendable ? email : null;
 
-    const isExtendable = checked ? true : false
-    const emailSender = isExtendable ? email : null
-
-    // Split the secret text into 2 fragments
-    const fragments = [];
+    // Split the secret text into 2 fragments.
+    const fragments: string[] = [];
     const fragmentSize = Math.ceil(secretText.length / 2);
     for (let i = 0; i < secretText.length; i += fragmentSize) {
       fragments.push(secretText.slice(i, i + fragmentSize));
     }
 
-    // Insert the secret record (note: secret_text is left as null because fragments are stored separately)
+    // Insert the secret record (secret_text remains null, fragments are stored separately)
     const secretRecord = await db("secrets")
       .insert({
         id: secretId,
         secret_text: null,
-        expires_in_days: expiresDays,
+        expires_in_days: expiresDays, // we still store days for reference
         password_hash: passwordHash,
-        created_at: new Date(),
+        created_at: now,
         expires_at: expiresAt,
         fragment_count: fragments.length,
         extendable: isExtendable,
@@ -73,44 +100,39 @@ app.post("/secrets", async (req, res) => {
       })
       .returning("id");
 
-    // If email is given, insert that record with the particular secretId in the DB
-    if(email) {
+    if (email) {
       await db("emails").insert({
         secret_id: secretId,
         email: email,
         expires_at: expiresAt
-      })
+      });
     }
 
-    // Determine the inserted secret's ID
     const insertedSecretId =
       Array.isArray(secretRecord) && secretRecord.length > 0
         ? (secretRecord[0].id ? secretRecord[0].id : secretRecord[0])
         : secretId;
 
-    // Store each fragment in the "secret_fragments" table
     await Promise.all(
       fragments.map((fragment, index) =>
         db("secret_fragments").insert({
           secret_id: insertedSecretId,
           fragment: fragment,
-          order: index,
+          order: index
         })
       )
     );
 
-    // Save the short URL mapping in the "secret_mappings" table
     await db("secret_mappings").insert({
       secret_id: insertedSecretId,
       short_id: shortId,
-      created_at: new Date(),
-      expires_at: expiresAt,
+      created_at: now,
+      expires_at: expiresAt
     });
 
-    // Return the generated short URL and expiration time
     res.json({
       shortUrl: `http://localhost:3000/share/${shortId}`,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: expiresAt.toISOString()
     });
   } catch (error) {
     console.error("Error creating secret:", error);
@@ -120,73 +142,80 @@ app.post("/secrets", async (req, res) => {
 
 /**
  * POST /secrets/:shortId
- * Validates the submitted password for a password-protected secret.
- * If valid (or if no password is set), returns the reassembled secret.
- * If the password is incorrect, returns a 401 with a clear error message.
+ * Validates the submitted password (if required) and returns the reassembled secret,
+ * provided the secret is not expired. If expired, responds with HTTP 410 along with the expiration timestamp.
  */
+app.post(
+  "/secrets/:shortId",
+  async (req: Request<{ shortId: string }>, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { shortId } = req.params;
+      const { password } = req.body;
 
-app.post("/secrets/:shortId", async (req: Request<{ shortId: string }>, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { shortId } = req.params;
-    const { password } = req.body;
+      // Retrieve the secret mapping using the short URL.
+      const secretMapping = await db("secret_mappings")
+        .where("short_id", shortId)
+        .first();
 
-    // Retrieve valid secret mapping
-    const secretMapping = await db("secret_mappings")
-      .where("short_id", shortId)
-      .andWhere("expires_at", ">", new Date())
-      .first();
-
-    if (!secretMapping) {
-      res.status(404).json({ error: "Secret not found or expired" });
-      return;
-    }
-
-    const secretId = secretMapping.secret_id;
-    const secret = await db("secrets").where("id", secretId).first();
-    if (!secret) {
-      await db("secret_mappings").where("short_id", shortId).del();
-      res.status(404).json({ error: "Secret not found" });
-      return;
-    }
-    if (new Date(secret.expires_at) < new Date()) {
-      await db("secrets").where("id", secretId).del();
-      await db("secret_mappings").where("short_id", shortId).del();
-      res.status(410).json({ error: "Secret has expired" });
-      return;
-    }
-
-    // If password is required, validate the submitted value.
-    if (secret.password_hash) {
-      if (!password) {
-        res.json({ secretText: null, passwordRequired: true });
+      if (!secretMapping) {
+        res.status(404).json({ error: "Secret not found" });
         return;
       }
-      const isValidPassword = await bcrypt.compare(
-        password,
-        secret.password_hash
-      );
-      if (!isValidPassword) {
-        res.status(401).json({ error: "Password is incorrect, please try again" });
+
+      const expirationDate = new Date(secretMapping.expires_at);
+      console.log(expirationDate)
+      const now = new Date();
+
+      // If secret has expired, return HTTP 410 with the proper expiration timestamp.
+      if (expirationDate <= now) {
+        res.status(410).json({
+          error: "Secret has expired",
+          expiresAt: expirationDate.toISOString()
+        });
         return;
       }
+
+      const secretId = secretMapping.secret_id;
+      const secret = await db("secrets").where("id", secretId).first();
+      if (!secret) {
+        res.status(404).json({ error: "Secret not found" });
+        return;
+      }
+
+      // If password protection is enabled, verify the provided password.
+      if (secret.password_hash) {
+        if (!password) {
+          res.json({ secretText: null, passwordRequired: true });
+          return;
+        }
+        const isValidPassword = await bcrypt.compare(password, secret.password_hash);
+        if (!isValidPassword) {
+          res.status(401).json({ error: "Password is incorrect, please try again" });
+          return;
+        }
+      }
+
+      // Reassemble secret text from fragments.
+      const fragments = await db("secret_fragments")
+        .where("secret_id", secretId)
+        .orderBy("order", "asc")
+        .select("fragment");
+      const secretText = fragments.reduce((acc, { fragment }) => acc + fragment, "");
+
+      // Compute remaining time on the server side.
+      const remainingTime = formatRemainingTime(expirationDate);
+      console.log(remainingTime)
+      res.json({
+        secretText,
+        expiresAt: expirationDate.toISOString(),
+        remainingTime
+      });
+    } catch (error) {
+      console.error("Error retrieving secret:", error);
+      res.status(500).json({ error: "Failed to retrieve secret" });
     }
-
-    // Reassemble and return secret text.
-    const fragments = await db("secret_fragments")
-      .where("secret_id", secretId)
-      .orderBy("order", "asc")
-      .select("fragment");
-    const secretText = fragments.reduce(
-      (acc, { fragment }) => acc + fragment,
-      ""
-    );
-
-    res.json({ secretText });
-  } catch (error) {
-    console.error("Error retrieving secret:", error);
-    res.status(500).json({ error: "Failed to retrieve secret" });
   }
-});
+);
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {

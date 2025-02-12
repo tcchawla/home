@@ -5,31 +5,47 @@ export default function SecretAccess() {
   const { shortId } = useParams();
   const [password, setPassword] = useState("");
   const [secretText, setSecretText] = useState("");
+  const [remainingTime, setRemainingTime] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [passwordRequired, setPasswordRequired] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
 
   // Handle form submission to retrieve the secret.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setIsExpired(false);
+    setSecretText("");
+    setRemainingTime("");
     try {
       const response = await fetch(`http://localhost:8000/secrets/${shortId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status === 410) {
+          setIsExpired(true);
+          setError(data.error || "Secret has expired");
+        } else {
+          setError(data.error || "Failed to retrieve secret");
+        }
+        return;
+      }
+
       const data = await response.json();
 
-      // If the secret is password-protected and a password is required
+      // If a password is required, show the password prompt.
       if (data.passwordRequired) {
         setPasswordRequired(true);
-      } else if (data.error) {
-        setError(data.error);
       } else if (data.secretText) {
-        // Once the secret is retrieved, set it and hide the password form.
+        // Save the secret and the remaining time (from the API).
         setSecretText(data.secretText);
+        setRemainingTime(data.remainingTime);
       }
     } catch (err) {
       console.error("Error retrieving secret:", err);
@@ -47,7 +63,10 @@ export default function SecretAccess() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {passwordRequired && (
               <div>
-                <label htmlFor="password" className="block text-lg font-medium mb-2">
+                <label
+                  htmlFor="password"
+                  className="block text-lg font-medium mb-2"
+                >
                   Password
                 </label>
                 <input
@@ -80,11 +99,16 @@ export default function SecretAccess() {
             {error}
           </div>
         )}
-        {secretText && (
+
+        {/* Display secret only if it is not expired */}
+        {!isExpired && secretText && (
           <>
             <div className="mt-6 p-6 bg-gray-700 rounded-md shadow">
               <h2 className="text-xl font-semibold mb-3">Your Secret</h2>
               <pre className="whitespace-pre-wrap text-white">{secretText}</pre>
+            </div>
+            <div className="mt-4 text-center text-gray-400">
+              <p>Expires in {remainingTime}</p>
             </div>
             <div className="flex justify-around mt-8">
               <Link
