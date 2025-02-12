@@ -5,7 +5,7 @@ install:
 	cd server && npm install
 
 up-dev:
-	docker compose -f docker-compose.dev.yml up --build
+	docker compose -f docker-compose.yml up --build
 
 down:
-	docker compose -f docker-compose.dev.yml down
+	docker compose -f docker-compose.yml down

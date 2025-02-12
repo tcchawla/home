@@ -21,6 +21,8 @@ exports.up = async function (knex) {
       t.timestamp("created_at").defaultTo(knex.fn.now());
       t.timestamp("expires_at");
       t.integer("fragment_count").defaultTo(2);
+      t.boolean("extendable").defaultTo(false);
+      t.text("email");
     });
 
     await createUpdateAtTriggerFunction(knex);
@@ -38,6 +40,18 @@ exports.up = async function (knex) {
 
     await createUpdateAtTriggerFunction(knex);
     await createOnUpdateTrigger(knex, "secret_fragments");
+  }
+
+  // // Create Emails table
+  if(!(await knex.schema.hasTable("email"))) {
+    await knex.schema.createTable("emails", (t) => {
+      t.uuid("id").primary().defaultTo(knex.fn.uuid());
+      t.uuid("secret_id").references("id").inTable("secrets");
+      t.text("email")
+    });
+
+    await createUpdateAtTriggerFunction(knex);
+    await createOnUpdateTrigger(knex, "emails");
   }
 
   // Create mapping table for short URLs
@@ -65,8 +79,11 @@ exports.down = async function (knex) {
     await knex.schema.dropTable("secret_fragments");
     await knex.schema.dropTable("secret_mappings");
     await knex.schema.dropTable("secrets");
+    await knex.schema.dropTable("emails");
+
     await dropOnUpdateTrigger(knex, "secrets");
     await dropOnUpdateTrigger(knex, "secret_fragments");
     await dropOnUpdateTrigger(knex, "secret_mappings");
+    await dropOnUpdateTrigger(knex, "emails");
   }
 };

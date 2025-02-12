@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { HeartSwitch } from '@anatoliygatt/heart-switch';
 
 export default function SecretSharingForm() {
   const [secretText, setSecretText] = useState("");
@@ -7,6 +8,9 @@ export default function SecretSharingForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shortUrl, setShortUrl] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [checked, setChecked] = useState(false);
+
 
   // Handles form submission: sends a POST request to create a new secret.
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,11 +20,13 @@ export default function SecretSharingForm() {
       const response = await fetch("http://localhost:8000/secrets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secretText, expiresDays, password }),
+        body: JSON.stringify({ secretText, expiresDays, password, checked, email }),
       });
       if (!response.ok) {
         throw new Error("Failed to create secret");
       }
+
+      console.log(email)
       const data = await response.json();
       setShortUrl(data.shortUrl);
 
@@ -100,6 +106,36 @@ export default function SecretSharingForm() {
               className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+            <HeartSwitch
+                  aria-label="Extendable"
+                  size="sm"
+                  inactiveTrackFillColor="#cffafe"
+                  inactiveTrackStrokeColor="#22d3ee"
+                  activeTrackFillColor="#06b6d4"
+                  activeTrackStrokeColor="#0891b2"
+                  inactiveThumbColor="#ecfeff"
+                  activeThumbColor="#ecfeff"
+                  checked={checked}
+                  onChange={(event) => {
+                    setChecked(event.target.checked);
+                  }}
+            />
+          {checked && (
+            <div>
+              <label htmlFor="email" className="block text-lg font-medium mb-2">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Please give an email"
+                className="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+          )}
 
           <button
             type="submit"

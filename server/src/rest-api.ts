@@ -39,7 +39,7 @@ const generateShortId = () => {
 
 app.post("/secrets", async (req, res) => {
   try {
-    const { secretText, expiresDays, password } = req.body;
+    const { secretText, expiresDays, password, checked, email } = req.body;
     const secretId = uuidv4();
     const shortId = generateShortId();
     const expiresAt = new Date();
@@ -47,6 +47,9 @@ app.post("/secrets", async (req, res) => {
 
     // Hash password if provided
     const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+
+    const isExtendable = checked ? true : false
+    const emailSender = isExtendable ? email : null
 
     // Split the secret text into 2 fragments
     const fragments = [];
@@ -65,8 +68,18 @@ app.post("/secrets", async (req, res) => {
         created_at: new Date(),
         expires_at: expiresAt,
         fragment_count: fragments.length,
+        extendable: isExtendable,
+        email: emailSender
       })
       .returning("id");
+
+    // If email is given, insert that record with the particular secretId in the DB
+    if(email) {
+      await db("emails").insert({
+        secret_id: secretId,
+        email: email
+      })
+    }
 
     // Determine the inserted secret's ID
     const insertedSecretId =
