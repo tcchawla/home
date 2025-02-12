@@ -42,18 +42,6 @@ exports.up = async function (knex) {
     await createOnUpdateTrigger(knex, "secret_fragments");
   }
 
-  // // Create Emails table
-  if(!(await knex.schema.hasTable("email"))) {
-    await knex.schema.createTable("emails", (t) => {
-      t.uuid("id").primary().defaultTo(knex.fn.uuid());
-      t.uuid("secret_id").references("id").inTable("secrets");
-      t.text("email")
-    });
-
-    await createUpdateAtTriggerFunction(knex);
-    await createOnUpdateTrigger(knex, "emails");
-  }
-
   // Create mapping table for short URLs
   if (!(await knex.schema.hasTable("secret_mappings"))) {
     await knex.schema.createTable("secret_mappings", (t) => {
@@ -67,7 +55,21 @@ exports.up = async function (knex) {
     await createUpdateAtTriggerFunction(knex);
     await createOnUpdateTrigger(knex, "secret_mappings");
   }
+
+  // Create Emails table
+  if(!(await knex.schema.hasTable("email"))) {
+    await knex.schema.createTable("emails", (t) => {
+      t.uuid("id").primary().defaultTo(knex.fn.uuid());
+      t.uuid("secret_id").references("id").inTable("secrets");
+      t.text("email")
+      t.timestamp("expires_at");
+    });
+
+    await createUpdateAtTriggerFunction(knex);
+    await createOnUpdateTrigger(knex, "emails");
+  }
 };
+
 
 /**
  * @param { import("knex").Knex } knex
@@ -78,8 +80,8 @@ exports.down = async function (knex) {
   if (await knex.schema.hasTable("secrets")) {
     await knex.schema.dropTable("secret_fragments");
     await knex.schema.dropTable("secret_mappings");
-    await knex.schema.dropTable("secrets");
     await knex.schema.dropTable("emails");
+    await knex.schema.dropTable("secrets");
 
     await dropOnUpdateTrigger(knex, "secrets");
     await dropOnUpdateTrigger(knex, "secret_fragments");

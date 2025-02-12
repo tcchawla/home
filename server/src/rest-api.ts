@@ -77,7 +77,8 @@ app.post("/secrets", async (req, res) => {
     if(email) {
       await db("emails").insert({
         secret_id: secretId,
-        email: email
+        email: email,
+        expires_at: expiresAt
       })
     }
 
